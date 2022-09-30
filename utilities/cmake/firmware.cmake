@@ -121,10 +121,13 @@ target_include_directories(${EXECUTABLE} PRIVATE
         stm32-hal/libusb/src
         )
 
+# warning flags ref: https://gcc.gnu.org/onlinedocs/gcc/Warning-Options.html
 target_compile_options(${EXECUTABLE} PRIVATE
         -mcpu=cortex-m4 -mthumb -mfpu=fpv4-sp-d16 -mfloat-abi=hard
         -fdata-sections -ffunction-sections
-        -Wall -Wno-format-truncation -Wno-unused-but-set-variable -Wno-return-type
+        -Wall -Wextra -Wdouble-promotion -Wformat=2 -Wformat-security -Wformat-nonliteral
+        -Wformat-overflow=2 -Wmissing-include-dirs -Wnull-dereference -Wswitch-default
+        -Wswitch-enum -Wunused-const-variable=2 -Wuninitialized -Wstrict-overflow=4
         -D_POSIX_C_SOURCE=200809L
         $<$<CONFIG:Debug>:-g3>
         )
