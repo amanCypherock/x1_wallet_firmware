@@ -349,7 +349,7 @@ void application_init() {
     create_timers();
     BSP_App_Timer_Start(BSP_APPLICATION_TIMER, POLLING_TIME);
 
-	ret = adafruit_pn532_init(false);
+	ret = adafruit_pn532_init(false, 1);
     uint32_t response;
     ret = adafruit_pn532_firmware_version_get(&response);
 

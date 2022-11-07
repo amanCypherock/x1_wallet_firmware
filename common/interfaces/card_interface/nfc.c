@@ -90,7 +90,7 @@ void my_error_check(ret_code_t err_code)
 ret_code_t nfc_init()
 {
     //Init PN532. Call this at start of program
-    return adafruit_pn532_init(false);
+    return adafruit_pn532_init(false, 1);
 }
 
 uint32_t nfc_diagnose_antenna_hw() {
