@@ -184,27 +184,42 @@ void setResponse(responseCommand cmd, uint8_t* buf, uint8_t* sendlen){
     break;
   }
 }
-
+#if 0
 uint32_t nfc_setup_target(){
-    while (adafruit_pn532_init_as_target() != STM_SUCCESS) 
+    uint32_t status = 0xFFFFFFFF, count=0;
+    char str[100];
+    while (status != STM_SUCCESS) 
     {
+        status = adafruit_pn532_init_as_target();
+        uint8_t target_status = adafruit_pn532_get_target_status();
+        snprintf(str, sizeof(str), "Waiting for reader %08x, attempt:%ld, status=%d", status, count, target_status);
+        instruction_scr_change_text(str, true);
         reset_inactivity_timer();
+        count++;
     }
+    return status;
 }
-
+#endif
 void tasks_read_card_id()
 {
-    adafruit_pn532_init(true, 2);
-    instruction_scr_init("Waiting for reader", "Emulation mode");
-    instruction_scr_change_text("Waiting for reader", true);
+#if 0
+    uint32_t err = 0;
+    char str[50]="";
+    if(err == 0){
+        instruction_scr_init("Waiting for reader", "Emulation mode");
+        instruction_scr_change_text(str, true);
+    }else{ 
+        reset_flow_level();
+        return;
+    }
     if(nfc_setup_target()==STM_SUCCESS){
 	      uint8_t rwbuf[255], rwlen = 255, sendlen = 0;
 	      tag_file currentFile;
 	      uint8_t taget_status = adafruit_pn532_get_target_status();
 
-          instruction_scr_change_text("Waiting for data read", true);
+        //   instruction_scr_change_text("Waiting for data read", true);
 	      while (1){
-                instruction_scr_change_text("Data read", true);
+                // instruction_scr_change_text("Data read", true);
 
 	          if(adafruit_pn532_get_data(rwbuf, &rwlen) != 0){
                   break;
@@ -265,10 +280,9 @@ void tasks_read_card_id()
             }
 
           }
-          adafruit_pn532_in_release();
         }
-    adafruit_pn532_init(true, 1);
-
+    adafruit_pn532_init(true);
+#endif
 }
 
 void tasks_update_card_id()

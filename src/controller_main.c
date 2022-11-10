@@ -127,6 +127,7 @@ bool main_app_ready = false;
 
 /// lvgl task to listen for desktop start command
 lv_task_t* listener_task;
+lv_task_t* nfc_initiator_listener_task;
 
 #if X1WALLET_MAIN == 1
 /// lvgl task to listen for desktop start command in restricted mode
@@ -230,6 +231,7 @@ void reset_flow_level()
     //clear memory
     memzero(wallet.password_double_hash, sizeof(wallet.password_double_hash));
     memzero(wallet_credential_data.passphrase, sizeof(wallet_credential_data.passphrase));
+    lv_task_set_prio(nfc_initiator_listener_task, LV_TASK_PRIO_LOW);
     cy_free();
 }
 

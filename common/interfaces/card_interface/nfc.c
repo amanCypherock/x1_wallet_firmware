@@ -64,6 +64,8 @@
 #include "application_startup.h"
 #include "app_error.h"
 
+extern lv_task_t* nfc_initiator_listener_task;
+
 #define DEFAULT_NFC_TG_INIT_TIME    25
 #define SEND_PACKET_MAX_LEN         236
 #define RECV_PACKET_MAX_ENC_LEN     242
@@ -87,10 +89,47 @@ void my_error_check(ret_code_t err_code)
     }
 }
 
+typedef struct{
+    uint8_t mifare_params[6],
+            pol_res[18],
+            nfcid3t[10],
+            gen_bytes_size,
+            gen_bytes[47],
+            hist_bytes_size,
+            hist_bytes[48]
+} emulation_card_params_t;
+
+emulation_card_params_t nfc_target_params = {
+        .mifare_params={0x04, 0x00, 0xdc, 0x44, 0x20, 0x60}, 
+        .pol_res = {0x01, 0xFE, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 0xC0, 0xC1, 0xC2, 0xC3, 0xC4, 0xC5, 0xC6, 0xC7, 0xFF, 0xFF},
+        .pol_res = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a},
+        .gen_bytes_size = 0,
+        .hist_bytes_size = 0
+        };
+
+void initiator_listener(lv_task_t *data)
+{
+    ret_code_t status = adafruit_pn532_init_as_target((uint8_t*)&nfc_target_params, 2000);
+    if(status != STM_SUCCESS){
+        return;
+    }
+
+    counter.next_event_flag = true;
+    flow_level.show_desktop_start_screen = true;
+    flow_level.level_one=LEVEL_TWO_ADVANCED_SETTINGS;
+    flow_level.level_two=LEVEL_THREE_VIEW_DEVICE_VERSION;
+    counter.level = LEVEL_THREE;
+    snprintf(flow_level.confirmation_screen_text, sizeof(flow_level.confirmation_screen_text), "Emulation begin?");
+    buzzer_start(50);
+    lv_obj_clean(lv_scr_act());
+    lv_task_set_prio(nfc_initiator_listener_task, LV_TASK_PRIO_OFF);
+}
+
+
 ret_code_t nfc_init()
 {
     //Init PN532. Call this at start of program
-    return adafruit_pn532_init(false, 1);
+    return adafruit_pn532_init(false);
 }
 
 uint32_t nfc_diagnose_antenna_hw() {
