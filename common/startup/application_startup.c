@@ -380,7 +380,7 @@ void application_init() {
     authentication_task = lv_task_create(__authentication_listener, 20, LV_TASK_PRIO_OFF, NULL);
 #endif
     listener_task = lv_task_create(desktop_listener_task, 20, LV_TASK_PRIO_OFF, NULL);
-    nfc_initiator_listener_task = lv_task_create(initiator_listener, 500, LV_TASK_PRIO_OFF, NULL);
+    nfc_initiator_listener_task = lv_task_create(initiator_listener, 100, LV_TASK_PRIO_OFF, NULL);
     nfc_set_device_key_id(get_perm_self_key_id());
     pow_init_hash_rate();
     if (get_first_boot_on_update() == true) {

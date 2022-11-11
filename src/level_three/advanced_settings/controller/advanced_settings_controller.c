@@ -65,6 +65,7 @@
 #include "cy_card_hc.h"
 #include <stdio.h>
 
+extern lv_task_t* nfc_initiator_listener_task;
 extern lv_task_t* timeout_task;
 
 void level_three_advanced_settings_controller()
@@ -98,9 +99,25 @@ void level_three_advanced_settings_controller()
         break;
 #endif
 
+    case LEVEL_THREE_DISPLAY_EMULATION_MESSAGE:{
+        send_apdu.lc = 2;
+        send_apdu.data[0] = 0x90;
+        send_apdu.data[1] = 0x00;
+        send_apdu_flag = true;
+        reset_flow_level();
+    }
+
     case LEVEL_THREE_VIEW_DEVICE_VERSION:{
         counter.level = LEVEL_TWO;
         flow_level.level_two = 1;
+        if(recv_apdu_flag == true)
+        {
+            send_apdu.lc = 2;
+            send_apdu.data[0] = 0x90;
+            send_apdu.data[1] = 0x00;
+            send_apdu_flag = true;
+            lv_task_set_prio(nfc_initiator_listener_task, LV_TASK_PRIO_LOW);
+        }
     } break;
     case LEVEL_THREE_VERIFY_CARD:
 #if X1WALLET_MAIN
@@ -114,6 +131,14 @@ void level_three_advanced_settings_controller()
 
     case LEVEL_THREE_READ_CARD_VERSION: {
         controller_read_card_id();
+        if(recv_apdu_flag == true)
+        {
+            send_apdu.lc = 2;
+            send_apdu.data[0] = 0x90;
+            send_apdu.data[1] = 0x00;
+            send_apdu_flag = true;
+            lv_task_set_prio(nfc_initiator_listener_task, LV_TASK_PRIO_LOW);
+        }
     } break;
 #if X1WALLET_MAIN
 #ifdef DEV_BUILD

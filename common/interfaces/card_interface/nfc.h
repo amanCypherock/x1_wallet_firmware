@@ -53,6 +53,19 @@
 #define POW_RAND_NUMBER_SIZE 32
 #define POW_NONCE_SIZE 32
 
+
+typedef struct{
+            uint8_t CLA;    //ISO7816
+            uint8_t INS;    //custom instruction byte
+            uint8_t p1;     //INS param 1
+            uint8_t p2;     //INS param 2
+            uint8_t lc;     //cmd len
+            uint8_t data[250];
+} apdu_struct_t;
+
+extern apdu_struct_t recv_apdu, send_apdu;
+extern bool recv_apdu_flag, send_apdu_flag;
+
 /**
  * @brief Initialize PN532 module
  * @details

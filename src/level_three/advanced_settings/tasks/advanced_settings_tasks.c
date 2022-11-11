@@ -129,6 +129,12 @@ void level_three_advanced_settings_tasks()
         cyt_card_hc();
         break;
 #endif
+    case LEVEL_THREE_DISPLAY_EMULATION_MESSAGE:{
+        char cmd_message[50] = "";
+        const char *pStr[3] = {"Emulation Message cmd", cmd_message, "Press ok for response"};
+        snprintf(cmd_message, sizeof(cmd_message), "%s", recv_apdu.data);
+        multi_instruction_init(pStr, 3, DELAY_TIME, true);
+        }break;
 
     case LEVEL_THREE_VIEW_DEVICE_VERSION: {
         uint32_t blVersion = FW_get_bootloader_version(), fwVersion = get_fwVer();

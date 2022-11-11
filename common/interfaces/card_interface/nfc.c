@@ -63,6 +63,7 @@
 #include "wallet_utilities.h"
 #include "application_startup.h"
 #include "app_error.h"
+#include "apdu.h"
 
 extern lv_task_t* nfc_initiator_listener_task;
 
@@ -89,6 +90,80 @@ void my_error_check(ret_code_t err_code)
     }
 }
 
+
+// Command APDU
+#define C_APDU_CLA   0
+#define C_APDU_INS   1 // instruction
+#define C_APDU_P1    2 // parameter 1
+#define C_APDU_P2    3 // parameter 2
+#define C_APDU_LC    4 // length command
+#define C_APDU_DATA  5 // data
+
+#define C_APDU_P1_SELECT_BY_ID   0x00
+#define C_APDU_P1_SELECT_BY_NAME 0x04
+
+// Response APDU
+#define R_APDU_SW1_COMMAND_COMPLETE 0x90 
+#define R_APDU_SW2_COMMAND_COMPLETE 0x00 
+
+#define R_APDU_SW1_NDEF_TAG_NOT_FOUND 0x6a
+#define R_APDU_SW2_NDEF_TAG_NOT_FOUND 0x82
+
+#define R_APDU_SW1_FUNCTION_NOT_SUPPORTED 0x6A
+#define R_APDU_SW2_FUNCTION_NOT_SUPPORTED 0x81
+
+#define R_APDU_SW1_MEMORY_FAILURE 0x65
+#define R_APDU_SW2_MEMORY_FAILURE 0x81
+
+#define R_APDU_SW1_END_OF_FILE_BEFORE_REACHED_LE_BYTES 0x62
+#define R_APDU_SW2_END_OF_FILE_BEFORE_REACHED_LE_BYTES 0x82
+
+// ISO7816-4 commands
+#define ISO7816_SELECT_FILE 0xA4
+#define ISO7816_READ_BINARY 0xB0
+#define ISO7816_UPDATE_BINARY 0xD6
+#define NDEF_MAX_LENGTH 128  // altough ndef can handle up to 0xfffe in size, arduino cannot.
+
+typedef enum {_NONE, CC, NDEF } tag_file;   // CC ... Compatibility Container
+
+typedef enum {COMMAND_COMPLETE, TAG_NOT_FOUND, FUNCTION_NOT_SUPPORTED, MEMORY_FAILURE, END_OF_FILE_BEFORE_REACHED_LE_BYTES} responseCommand;
+
+void setResponse(responseCommand cmd, uint8_t* buf, uint8_t* sendlen){
+  switch(cmd){
+  case COMMAND_COMPLETE:
+    buf[0] = R_APDU_SW1_COMMAND_COMPLETE;
+    buf[1] = R_APDU_SW2_COMMAND_COMPLETE;
+    *sendlen += 2;
+    break;
+  case TAG_NOT_FOUND:
+    buf[0] = R_APDU_SW1_NDEF_TAG_NOT_FOUND;
+    buf[1] = R_APDU_SW2_NDEF_TAG_NOT_FOUND;
+    *sendlen = 2;
+    break;
+  case FUNCTION_NOT_SUPPORTED:
+    buf[0] = R_APDU_SW1_FUNCTION_NOT_SUPPORTED;
+    buf[1] = R_APDU_SW2_FUNCTION_NOT_SUPPORTED;
+    *sendlen = 2;
+    break;
+  case MEMORY_FAILURE:
+    buf[0] = R_APDU_SW1_MEMORY_FAILURE;
+    buf[1] = R_APDU_SW2_MEMORY_FAILURE;
+    *sendlen = 2;
+    break;
+  case END_OF_FILE_BEFORE_REACHED_LE_BYTES:
+    buf[0] = R_APDU_SW1_END_OF_FILE_BEFORE_REACHED_LE_BYTES;
+    buf[1] = R_APDU_SW2_END_OF_FILE_BEFORE_REACHED_LE_BYTES;
+    *sendlen= 2;
+    break;
+  }
+}
+
+typedef enum {
+    //Template - APDU_FUNCTION = INS_CODE
+    APDU_DISPLAY_MESSAGE = 0xE0,
+    APDU_READ_CARD_VERSION = 0xE1,
+    APDU_READ_DEVICE_INFO = 0xE2
+} emu_apdu_command_type;
 typedef struct{
     uint8_t mifare_params[6],
             pol_res[18],
@@ -96,8 +171,11 @@ typedef struct{
             gen_bytes_size,
             gen_bytes[47],
             hist_bytes_size,
-            hist_bytes[48]
+            hist_bytes[48];
 } emulation_card_params_t;
+
+apdu_struct_t recv_apdu = {0}, send_apdu = {0};
+bool recv_apdu_flag = false, send_apdu_flag = false;
 
 emulation_card_params_t nfc_target_params = {
         .mifare_params={0x04, 0x00, 0xdc, 0x44, 0x20, 0x60}, 
@@ -107,24 +185,96 @@ emulation_card_params_t nfc_target_params = {
         .hist_bytes_size = 0
         };
 
-void initiator_listener(lv_task_t *data)
+ret_code_t nfc_target_data_read()
 {
-    ret_code_t status = adafruit_pn532_init_as_target((uint8_t*)&nfc_target_params, 2000);
-    if(status != STM_SUCCESS){
-        return;
+    ret_code_t status = 0xFF;
+    uint8_t data_size = 250;
+    uint8_t taget_status = adafruit_pn532_get_target_status();
+    send_apdu_flag = false;
+    if(taget_status != 0x81){
+        return -1;
     }
 
-    counter.next_event_flag = true;
-    flow_level.show_desktop_start_screen = true;
-    flow_level.level_one=LEVEL_TWO_ADVANCED_SETTINGS;
-    flow_level.level_two=LEVEL_THREE_VIEW_DEVICE_VERSION;
-    counter.level = LEVEL_THREE;
-    snprintf(flow_level.confirmation_screen_text, sizeof(flow_level.confirmation_screen_text), "Emulation begin?");
-    buzzer_start(50);
-    lv_obj_clean(lv_scr_act());
-    lv_task_set_prio(nfc_initiator_listener_task, LV_TASK_PRIO_OFF);
+    status = adafruit_pn532_get_data((uint8_t*)&recv_apdu, &data_size);
+    if (recv_apdu.CLA != CLA_ISO7816){
+        send_apdu.lc = 2;
+        send_apdu.data[0] = 0x6A;
+        send_apdu.data[1] = 0x82;
+        send_apdu_flag = true;
+        return 0x80;
+    }
+    recv_apdu_flag = true;
+
+    switch (recv_apdu.INS)
+    {
+    case APDU_DISPLAY_MESSAGE:
+        if(recv_apdu.lc == 0)
+            return 2;
+        counter.level = LEVEL_THREE;
+        flow_level.level_one = LEVEL_TWO_ADVANCED_SETTINGS;
+        flow_level.level_two = LEVEL_THREE_DISPLAY_EMULATION_MESSAGE;
+        recv_apdu_flag = true;
+        break;
+
+    case APDU_READ_CARD_VERSION:
+        counter.level = LEVEL_THREE;
+        flow_level.level_one = LEVEL_TWO_ADVANCED_SETTINGS;
+        flow_level.level_two = LEVEL_THREE_READ_CARD_VERSION;
+        recv_apdu_flag = true;
+        break;
+
+    case APDU_READ_DEVICE_INFO:
+        counter.level = LEVEL_THREE;
+        flow_level.level_one = LEVEL_TWO_ADVANCED_SETTINGS;
+        flow_level.level_two = LEVEL_THREE_VIEW_DEVICE_VERSION;
+        recv_apdu_flag = true;
+        break;
+
+    default:
+        send_apdu.lc = 2;
+        send_apdu.data[0] = 0x6A;
+        send_apdu.data[1] = 0x82;
+        send_apdu_flag = true;
+        return 0x80;
+        break;
+    }
+    if(recv_apdu_flag){
+        flow_level.show_desktop_start_screen = true;
+        snprintf(flow_level.confirmation_screen_text, sizeof(flow_level.confirmation_screen_text), "Emulation task begin?");
+        buzzer_start(50);
+        lv_obj_clean(lv_scr_act());
+        lv_task_set_prio(nfc_initiator_listener_task, LV_TASK_PRIO_OFF);
+        return SUCCESS_;
+    }
+    return 3;
 }
 
+void initiator_listener(lv_task_t *data)
+{
+    ret_code_t status = 0xff;
+    uint8_t target_status = adafruit_pn532_get_target_status();
+    if(target_status == 0x00){
+        status = adafruit_pn532_init_as_target((uint8_t*)&nfc_target_params, 50);
+        if(status != STM_SUCCESS){
+            LOG_CRITICAL("emu err recv:%d", status);
+            return;
+        }
+        status = nfc_target_data_read();
+        if (status != 0x80){
+            return;
+        }
+    }
+    if (target_status == 0x81){
+        if(send_apdu_flag == true){
+            status = adafruit_pn532_set_data((uint8_t*)&send_apdu, send_apdu.lc+5);
+            if (status != SUCCESS_)
+                LOG_CRITICAL("emu err send:%d", status);
+        }
+        status = adafruit_pn532_in_release();
+        if (status != SUCCESS_)
+            LOG_CRITICAL("emu err release:%d", status);
+    }
+}
 
 ret_code_t nfc_init()
 {
