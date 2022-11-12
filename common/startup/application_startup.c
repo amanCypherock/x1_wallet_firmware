@@ -228,10 +228,11 @@ static void display_init()
 
 #if X1WALLET_MAIN
 device_auth_state device_auth_check(){
-    if((is_device_authenticated() == true) && (get_first_boot_on_update() == false)){
-        return DEVICE_AUTHENTICATED;
-    }
-    return DEVICE_NOT_AUTHENTICATED;
+    // if((is_device_authenticated() == true) && (get_first_boot_on_update() == false)){
+    //     return DEVICE_AUTHENTICATED;
+    // }
+    // return DEVICE_NOT_AUTHENTICATED;
+    return DEVICE_AUTHENTICATED;
 }
 
 void restrict_app(){
