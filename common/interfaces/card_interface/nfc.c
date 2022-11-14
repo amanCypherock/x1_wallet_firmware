@@ -192,10 +192,12 @@ ret_code_t nfc_target_data_read()
     uint8_t taget_status = adafruit_pn532_get_target_status();
     send_apdu_flag = false;
     if(taget_status != 0x81){
+        LOG_CRITICAL("target status: %d", taget_status);
         return -1;
     }
 
     status = adafruit_pn532_get_data((uint8_t*)&recv_apdu, &data_size);
+    log_hex_array("apdu received", (uint8_t*)&recv_apdu, 250);
     if (recv_apdu.CLA != CLA_ISO7816){
         send_apdu.lc = 2;
         send_apdu.data[0] = 0x6A;
