@@ -1,0 +1,24 @@
+@startuml
+participant rpiHost
+' participant rpiUart
+' participant walletUart
+participant walletTestSuite
+participant wallet
+
+autonumber
+rpiHost -> walletTestSuite : CMD:Get state variables
+walletTestSuite -> rpiHost: status: "status" \ntest_state=TEST_IDLE \ndeviceState=counterLevel
+
+rpiHost -> walletTestSuite : CMD: Init Seed generate test with inputs
+alt successful case:
+walletTestSuite -> walletTestSuite: update \ntest_state=NO_TEST, \ntest_case=TEST_GENERATE_SEED
+walletTestSuite -> rpiHost: resp: Starting test
+else test already running
+walletTestSuite -> rpiHost: status: "reject" \ntest_state=TEST_IDLE \ndeviceState=counterLevel
+end
+
+walletTestSuite -> rpiHost: status: "test started" \ntest_state=TEST_IDLE \ndeviceState=counterLevel
+walletTestSuite -> rpiHost: status: "end reached"  \ntest_state=TEST_IDLE \ndeviceState=counterLevel
+walletTestSuite -> rpiHost: resp: send final test data
+
+@enduml

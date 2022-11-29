@@ -1,10 +1,19 @@
-#ifdef X1WALLET_TEST_SUITE
+#if X1WALLET_TEST_SUITE==1
 
 #include "controller_main.h"
 #include "communication.h"
 #include "board.h"
 #include "logger.h"
 #include "sys_state.h"
+
+typedef enum{
+  cmd = 1,
+  status = 2,
+  resp = 3,
+  nak = 5,
+  ack = 6,
+  abort = 7
+}uart_comm_states_t;
 
 typedef enum{
     NO_TEST = 0,
@@ -20,8 +29,8 @@ typedef enum{
     TEST_RESTORE_SEED = 2
 }test_cases_t;
 
-test_cases_t test_case = TEST_GENERATE_SEED;
-test_state_t test_state = NO_TEST;
+test_cases_t test_case = 0;
+test_state_t test_state = TEST_IDLE;
 
 typedef struct{
     uint8_t     level;
@@ -31,6 +40,10 @@ typedef struct{
 
 test_block_data_t test_data = {0};
 extern lv_task_t* listener_task;
+
+void read_uart_commands(){
+    
+}
 
 void set_level_one_variables(){
     flow_level.level_one = test_data.start_flow.level_one;
