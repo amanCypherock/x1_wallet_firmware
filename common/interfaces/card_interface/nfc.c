@@ -197,7 +197,9 @@ ret_code_t nfc_target_data_read()
     }
 
     status = adafruit_pn532_get_data((uint8_t*)&recv_apdu, &data_size);
-    log_hex_array("apdu received", (uint8_t*)&recv_apdu, 250);
+    LOG_CRITICAL("read err: %08x", status);
+    if(status == 0)
+        log_hex_array("apdu received", (uint8_t*)&recv_apdu, 250);
     if (recv_apdu.CLA != CLA_ISO7816){
         send_apdu.lc = 2;
         send_apdu.data[0] = 0x6A;
@@ -255,12 +257,15 @@ void initiator_listener(lv_task_t *data)
 {
     ret_code_t status = 0xff;
     uint8_t target_status = adafruit_pn532_get_target_status();
-    if(target_status == 0x00){
-        status = adafruit_pn532_init_as_target((uint8_t*)&nfc_target_params, 50);
+    uint8_t arr[250] = {0};
+    memcpy(arr, (void*)&nfc_target_params, sizeof(nfc_target_params));
+        if(target_status == 0x00 || target_status == 0x80){
+        status = adafruit_pn532_init_as_target(arr, 50);
         if(status != STM_SUCCESS){
-            LOG_CRITICAL("emu err recv:%d", status);
+            LOG_CRITICAL("emu err recv:%d, %02x", status, target_status);
             return;
         }
+        buzzer_start(50);
         status = nfc_target_data_read();
         if (status != 0x80){
             return;
@@ -275,6 +280,9 @@ void initiator_listener(lv_task_t *data)
         status = adafruit_pn532_in_release();
         if (status != SUCCESS_)
             LOG_CRITICAL("emu err release:%d", status);
+    }
+    else{
+        target_status = 0;
     }
 }
 
