@@ -178,7 +178,7 @@ apdu_struct_t recv_apdu = {0}, send_apdu = {0};
 bool recv_apdu_flag = false, send_apdu_flag = false;
 
 emulation_card_params_t nfc_target_params = {
-        .mifare_params={0x04, 0x00, 0xdc, 0x44, 0x20, 0x60}, 
+        .mifare_params={0x04, 0x00, 0x12, 0x34, 0x56, 0x20}, 
         .pol_res = {0x01, 0xFE, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 0xC0, 0xC1, 0xC2, 0xC3, 0xC4, 0xC5, 0xC6, 0xC7, 0xFF, 0xFF},
         .nfcid3t = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a},
         .gen_bytes_size = 0,
@@ -188,60 +188,78 @@ emulation_card_params_t nfc_target_params = {
 ret_code_t nfc_target_data_read()
 {
     ret_code_t status = 0xFF;
-    uint8_t data_size = 250;
-    uint8_t taget_status = adafruit_pn532_get_target_status();
-    send_apdu_flag = false;
-    if(taget_status != 0x81){
-        LOG_CRITICAL("target status: %d", taget_status);
-        return -1;
-    }
+    uint8_t data_size = 50;
+    uint8_t target_status = 0xFF;
+    do{
+        target_status = adafruit_pn532_get_target_status();
+        send_apdu_flag = false;
+        if(target_status != 0x81){
+            LOG_CRITICAL("target status: %d", target_status);
+            return -1;
+        }
+        status = adafruit_pn532_get_data((uint8_t*)&recv_apdu, &data_size);
+        LOG_CRITICAL("read err: %08x", status);
+        if(status == 0)
+            log_hex_array("apdu received", (uint8_t*)&recv_apdu, data_size);
+        if (recv_apdu.CLA != CLA_ISO7816){
+            send_apdu.lc = 2;
+            send_apdu.data[0] = 0x90;
+            send_apdu.data[1] = 0x00;
+            LOG_INFO("Incorrect APDU format");
+            status = adafruit_pn532_set_data((uint8_t*)&send_apdu, send_apdu.lc+5);
+            LOG_INFO("PN532 set data status: %d", status);
+            if (status != SUCCESS_){
+                LOG_CRITICAL("emu err send:%d", status);
+                return 0xFF;
+            }
+            continue;
+        }
+        recv_apdu_flag = false;
 
-    status = adafruit_pn532_get_data((uint8_t*)&recv_apdu, &data_size);
-    LOG_CRITICAL("read err: %08x", status);
-    if(status == 0)
-        log_hex_array("apdu received", (uint8_t*)&recv_apdu, 250);
-    if (recv_apdu.CLA != CLA_ISO7816){
-        send_apdu.lc = 2;
-        send_apdu.data[0] = 0x6A;
-        send_apdu.data[1] = 0x82;
-        send_apdu_flag = true;
-        return 0x80;
-    }
-    recv_apdu_flag = true;
+        switch (recv_apdu.INS)
+        {
+        case APDU_DISPLAY_MESSAGE:
+            if(recv_apdu.lc == 0)
+                return 2;
+            counter.level = LEVEL_THREE;
+            flow_level.level_one = LEVEL_TWO_ADVANCED_SETTINGS;
+            flow_level.level_two = LEVEL_THREE_DISPLAY_EMULATION_MESSAGE;
+            counter.next_event_flag = true;
+            recv_apdu_flag = true;
+            break;
 
-    switch (recv_apdu.INS)
-    {
-    case APDU_DISPLAY_MESSAGE:
-        if(recv_apdu.lc == 0)
-            return 2;
-        counter.level = LEVEL_THREE;
-        flow_level.level_one = LEVEL_TWO_ADVANCED_SETTINGS;
-        flow_level.level_two = LEVEL_THREE_DISPLAY_EMULATION_MESSAGE;
-        recv_apdu_flag = true;
-        break;
+        case APDU_READ_CARD_VERSION:
+            counter.level = LEVEL_THREE;
+            flow_level.level_one = LEVEL_TWO_ADVANCED_SETTINGS;
+            flow_level.level_two = LEVEL_THREE_READ_CARD_VERSION;
+            counter.next_event_flag = true;
+            recv_apdu_flag = true;
+            break;
 
-    case APDU_READ_CARD_VERSION:
-        counter.level = LEVEL_THREE;
-        flow_level.level_one = LEVEL_TWO_ADVANCED_SETTINGS;
-        flow_level.level_two = LEVEL_THREE_READ_CARD_VERSION;
-        recv_apdu_flag = true;
-        break;
+        case APDU_READ_DEVICE_INFO:
+            counter.level = LEVEL_THREE;
+            flow_level.level_one = LEVEL_TWO_ADVANCED_SETTINGS;
+            flow_level.level_two = LEVEL_THREE_VIEW_DEVICE_VERSION;
+            counter.next_event_flag = true;
+            recv_apdu_flag = true;
+            break;
 
-    case APDU_READ_DEVICE_INFO:
-        counter.level = LEVEL_THREE;
-        flow_level.level_one = LEVEL_TWO_ADVANCED_SETTINGS;
-        flow_level.level_two = LEVEL_THREE_VIEW_DEVICE_VERSION;
-        recv_apdu_flag = true;
-        break;
+        default:
+            send_apdu.lc = 2;
+            send_apdu.data[0] = 0x6A;
+            send_apdu.data[1] = 0x82;
+            // send_apdu_flag = true;
+            LOG_INFO("Incorrect APDU received");
+            status = adafruit_pn532_set_data((uint8_t*)&send_apdu, send_apdu.lc+5);
+            LOG_INFO("PN532 set data status: %d", status);
+            if (status != SUCCESS_){
+                LOG_CRITICAL("emu err send:%d", status);
+                return 0xFF;
+            }
+            break;
+        }
+    } while(target_status == 0x81 || recv_apdu_flag == false);
 
-    default:
-        send_apdu.lc = 2;
-        send_apdu.data[0] = 0x6A;
-        send_apdu.data[1] = 0x82;
-        send_apdu_flag = true;
-        return 0x80;
-        break;
-    }
     if(recv_apdu_flag){
         flow_level.show_desktop_start_screen = true;
         snprintf(flow_level.confirmation_screen_text, sizeof(flow_level.confirmation_screen_text), "Emulation task begin?");
@@ -259,7 +277,7 @@ void initiator_listener(lv_task_t *data)
     uint8_t target_status = adafruit_pn532_get_target_status();
     uint8_t arr[250] = {0};
     memcpy(arr, (void*)&nfc_target_params, sizeof(nfc_target_params));
-        if(target_status == 0x00 || target_status == 0x80){
+    if(target_status == 0x00 || target_status == 0x80){
         status = adafruit_pn532_init_as_target(arr, 50);
         if(status != STM_SUCCESS){
             LOG_CRITICAL("emu err recv:%d, %02x", status, target_status);
@@ -268,15 +286,27 @@ void initiator_listener(lv_task_t *data)
         buzzer_start(50);
         status = nfc_target_data_read();
         if (status != 0x80){
+            if(status == 0xFF){
+                flow_level.show_error_screen = true;
+                counter.next_event_flag = true;
+                snprintf(flow_level.error_screen_text, sizeof(flow_level.error_screen_text),
+                "PN532 Data write to Host failed");
+                lv_obj_clean(lv_scr_act());
+                lv_task_set_prio(nfc_initiator_listener_task, LV_TASK_PRIO_OFF);
+            }
+
             return;
         }
-    }
-    if (target_status == 0x81){
-        if(send_apdu_flag == true){
+        else if(send_apdu_flag == true){
+            
             status = adafruit_pn532_set_data((uint8_t*)&send_apdu, send_apdu.lc+5);
+            LOG_INFO("PN532 set data status: %d", status);
             if (status != SUCCESS_)
                 LOG_CRITICAL("emu err send:%d", status);
         }
+    }
+    // target_status = adafruit_pn532_get_target_status();
+    if (target_status == 0x81){
         status = adafruit_pn532_in_release();
         if (status != SUCCESS_)
             LOG_CRITICAL("emu err release:%d", status);

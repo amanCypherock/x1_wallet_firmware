@@ -290,7 +290,7 @@ void logger_task() {
 
 void log_hex_array(const char text[], const uint8_t* arr, const uint8_t length)
 {
-    if (!is_logging_enabled()) return;
+    // if (!is_logging_enabled()) return;
     if (text == NULL || arr == NULL || length == 0)
         return;
 
