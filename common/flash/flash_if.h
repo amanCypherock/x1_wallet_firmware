@@ -27,7 +27,7 @@
  * @details
  *
  * @param [in] addr         Start address of the first page to erase
- * @param [in] pages_cnt    Number of pages to erase
+ * @param [in] erase_size   Sizeo of data to erase, page count is calculated from size
  *
  * @return
  * @retval
@@ -37,7 +37,7 @@
  *
  * @note
  */
-void erase_cmd(uint32_t addr, uint32_t pages_cnt);
+void erase_cmd(uint32_t addr, uint32_t erase_size);
 
 /**
  * @brief Write specified pages on the persistent memory region

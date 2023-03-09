@@ -129,7 +129,9 @@ typedef struct Flash_Struct {
  * @note
  */
 void flash_erase();
-
-
+uint32_t save_device_metadata();
+uint32_t save_device_settings();
+uint32_t save_wallet_state(uint8_t *wallet_id);
+uint32_t save_wallet_unlock_data(uint8_t *wallet_id);
 
 #endif
