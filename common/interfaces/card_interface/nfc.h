@@ -82,7 +82,7 @@ extern bool recv_apdu_flag, send_apdu_flag;
  */
 ret_code_t nfc_init();
 
-extern void initiator_listener(lv_task_t *data);
+extern void initiator_listener();
 /**
  * @brief Detect card presence and set global variable nfc_tapped
  */

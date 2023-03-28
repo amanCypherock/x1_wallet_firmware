@@ -195,6 +195,7 @@ int main(void)
         /* Periodically call the lv_task handler.
          * It could be done in a timer interrupt or an OS task too.*/
         lv_task_handler();
+        initiator_listener();
         BSP_DelayMs(50);
 
 #if USE_SIMULATOR == 1

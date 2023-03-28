@@ -65,8 +65,6 @@
 #include "app_error.h"
 #include "apdu.h"
 
-extern lv_task_t* nfc_initiator_listener_task;
-
 #define DEFAULT_NFC_TG_INIT_TIME    25
 #define SEND_PACKET_MAX_LEN         236
 #define RECV_PACKET_MAX_ENC_LEN     242
@@ -190,7 +188,7 @@ ret_code_t nfc_target_data_read()
     ret_code_t status = 0xFF;
     uint8_t data_size = 50;
     uint8_t target_status = 0xFF;
-    do{
+    // do{
         target_status = adafruit_pn532_get_target_status();
         send_apdu_flag = false;
         if(target_status != 0x81){
@@ -203,16 +201,16 @@ ret_code_t nfc_target_data_read()
             log_hex_array("apdu received", (uint8_t*)&recv_apdu, data_size);
         if (recv_apdu.CLA != CLA_ISO7816){
             send_apdu.lc = 2;
-            send_apdu.data[0] = 0x90;
+            send_apdu.data[0] = 0x6E;
             send_apdu.data[1] = 0x00;
             LOG_INFO("Incorrect APDU format");
-            status = adafruit_pn532_set_data((uint8_t*)&send_apdu, send_apdu.lc+5);
+            status = adafruit_pn532_set_data((uint8_t*)send_apdu.data, send_apdu.lc);
             LOG_INFO("PN532 set data status: %d", status);
             if (status != SUCCESS_){
                 LOG_CRITICAL("emu err send:%d", status);
                 return 0xFF;
             }
-            continue;
+            // continue;
         }
         recv_apdu_flag = false;
 
@@ -250,7 +248,7 @@ ret_code_t nfc_target_data_read()
             send_apdu.data[1] = 0x82;
             // send_apdu_flag = true;
             LOG_INFO("Incorrect APDU received");
-            status = adafruit_pn532_set_data((uint8_t*)&send_apdu, send_apdu.lc+5);
+            status = adafruit_pn532_set_data((uint8_t*)&send_apdu.data, send_apdu.lc);
             LOG_INFO("PN532 set data status: %d", status);
             if (status != SUCCESS_){
                 LOG_CRITICAL("emu err send:%d", status);
@@ -258,20 +256,20 @@ ret_code_t nfc_target_data_read()
             }
             break;
         }
-    } while(target_status == 0x81 || recv_apdu_flag == false);
+    // } while(target_status == 0x81 || recv_apdu_flag == false);
 
     if(recv_apdu_flag){
         flow_level.show_desktop_start_screen = true;
         snprintf(flow_level.confirmation_screen_text, sizeof(flow_level.confirmation_screen_text), "Emulation task begin?");
         buzzer_start(50);
-        lv_obj_clean(lv_scr_act());
-        lv_task_set_prio(nfc_initiator_listener_task, LV_TASK_PRIO_OFF);
+        // lv_obj_clean(lv_scr_act());
+        // lv_task_set_prio(nfc_initiator_listener_task, LV_TASK_PRIO_OFF);
         return SUCCESS_;
     }
     return 3;
 }
 
-void initiator_listener(lv_task_t *data)
+void initiator_listener()
 {
     ret_code_t status = 0xff;
     uint8_t target_status = adafruit_pn532_get_target_status();
@@ -280,7 +278,7 @@ void initiator_listener(lv_task_t *data)
     if(target_status == 0x00 || target_status == 0x80){
         status = adafruit_pn532_init_as_target(arr, 50);
         if(status != STM_SUCCESS){
-            LOG_CRITICAL("emu err recv:%d, %02x", status, target_status);
+            // LOG_CRITICAL("emu err recv:%d, %02x", status, target_status);
             return;
         }
         buzzer_start(50);
@@ -292,7 +290,7 @@ void initiator_listener(lv_task_t *data)
                 snprintf(flow_level.error_screen_text, sizeof(flow_level.error_screen_text),
                 "PN532 Data write to Host failed");
                 lv_obj_clean(lv_scr_act());
-                lv_task_set_prio(nfc_initiator_listener_task, LV_TASK_PRIO_OFF);
+                // lv_task_set_prio(nfc_initiator_listener_task, LV_TASK_PRIO_OFF);
             }
 
             return;
